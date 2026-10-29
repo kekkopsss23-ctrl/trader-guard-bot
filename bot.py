@@ -11,7 +11,14 @@ Comandi (solo admin del gruppo):
   /rimuovi             -> in risposta a un messaggio: toglie l'utente dalla lista
   /rimuovi 123456789   -> toglie per user_id
   /lista               -> mostra i verificati
-  /topic               -> mostra l'id del topic in cui lo scrivi (per trovare THREAD_ID)
+  /topic               -> mostra l'id del topic in cui lo scrivi
+
+Variabili d'ambiente:
+  BOT_TOKEN               token di BotFather
+  THREAD_IDS              topic dove scrivono verificati + admin, separati da virgola (es. 66017)
+  ADMIN_ONLY_THREAD_IDS   topic dove scrivono solo gli admin, es. Annunci (es. 70123)
+  GROUP_ID                id del gruppo (opzionale, 0 = qualsiasi)
+  DATA_FILE               dove salvare la lista verificati
   /id                  -> mostra il tuo user_id (tutti possono usarlo)
 """
 
@@ -37,7 +44,16 @@ log = logging.getLogger("trader-guard")
 
 # ---------------------------------------------------------------- configurazione
 TOKEN = os.environ["BOT_TOKEN"]
-THREAD_ID = int(os.environ.get("THREAD_ID", "0"))  # 0 = non ancora impostato
+def _ids(nome: str) -> set[int]:
+    """Legge una variabile tipo '66017,70123' e restituisce un set di int."""
+    raw = os.environ.get(nome, "").replace(";", ",")
+    return {int(x) for x in raw.split(",") if x.strip().lstrip("-").isdigit() and int(x) != 0}
+
+
+# Topic dove scrivono solo verificati + admin (THREAD_ID è accettato per compatibilità)
+THREAD_IDS = _ids("THREAD_IDS") | _ids("THREAD_ID")
+# Topic dove scrivono SOLO gli admin (es. Annunci)
+ADMIN_ONLY_THREAD_IDS = _ids("ADMIN_ONLY_THREAD_IDS")
 GROUP_ID = int(os.environ.get("GROUP_ID", "0"))    # 0 = qualsiasi gruppo
 DATA_FILE = Path(os.environ.get("DATA_FILE", "verificati.json"))
 
@@ -154,26 +170,27 @@ async def filtro(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if GROUP_ID and msg.chat_id != GROUP_ID:
         return
-    if THREAD_ID == 0 or msg.message_thread_id != THREAD_ID:
-        return  # non è il topic protetto
+    tid = msg.message_thread_id
+    if tid not in THREAD_IDS and tid not in ADMIN_ONLY_THREAD_IDS:
+        return  # non è un topic protetto
 
     uid = msg.from_user.id
-    if uid in VERIFICATI:
+    if tid in THREAD_IDS and uid in VERIFICATI:
         return
     if await e_admin(update, context):
         return
 
     try:
         await msg.delete()
-        log.info("Cancellato messaggio di %s (%s) nel topic %s", uid, msg.from_user.full_name, THREAD_ID)
+        log.info("Cancellato messaggio di %s (%s) nel topic %s", uid, msg.from_user.full_name, tid)
     except Exception as e:
         log.error("Impossibile cancellare il messaggio di %s: %s", uid, e)
 
 
 # ---------------------------------------------------------------- avvio
 def main():
-    if THREAD_ID == 0:
-        log.warning("THREAD_ID non impostato: il bot NON cancella nulla. Usa /topic nel topic giusto.")
+    if not THREAD_IDS and not ADMIN_ONLY_THREAD_IDS:
+        log.warning("Nessun topic configurato: il bot NON cancella nulla. Imposta THREAD_IDS / ADMIN_ONLY_THREAD_IDS.")
 
     app = Application.builder().token(TOKEN).build()
 
@@ -189,7 +206,8 @@ def main():
         MessageHandler(gruppi & ~filters.COMMAND & ~filters.StatusUpdate.ALL, filtro)
     )
 
-    log.info("Trader Guard Bot avviato. Topic protetto: %s", THREAD_ID or "nessuno")
+    log.info("Trader Guard Bot avviato. Topic verificati: %s | Topic solo admin: %s",
+             sorted(THREAD_IDS) or "nessuno", sorted(ADMIN_ONLY_THREAD_IDS) or "nessuno")
     app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
 
 

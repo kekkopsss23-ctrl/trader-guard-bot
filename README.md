@@ -15,7 +15,11 @@ possono sempre scrivere.
 1. Avvia il bot (vedi sotto) lasciando `THREAD_ID=0`.
 2. Scrivi `/topic` **dentro** il topic "Trader verificati": il bot risponde con
    `chat_id` e `message_thread_id`.
-3. Metti quei valori in `THREAD_ID` e (opzionale) `GROUP_ID`, poi riavvia.
+3. Metti l'id del topic in `THREAD_IDS` (verificati + admin) oppure in
+   `ADMIN_ONLY_THREAD_IDS` (solo admin, es. Annunci). Più topic separati da
+   virgola: `THREAD_IDS=66017,66500`. `GROUP_ID` è opzionale. Poi riavvia.
+   In alternativa prendi gli id dal link di un messaggio del topic:
+   `https://t.me/c/<gruppo>/<topic_id>/<msg_id>` → `GROUP_ID=-100<gruppo>`, topic_id.
 
 ## 3. Avvio in locale
 ```bash
@@ -28,7 +32,7 @@ python bot.py
 ## 4. Deploy su Railway
 1. Carica la cartella su GitHub (il `.gitignore` esclude già `.env` e `verificati.json`).
 2. Railway → New Project → Deploy from GitHub repo.
-3. In **Variables** inserisci `BOT_TOKEN`, `THREAD_ID`, `GROUP_ID`.
+3. In **Variables** inserisci `BOT_TOKEN`, `THREAD_IDS`, `ADMIN_ONLY_THREAD_IDS`, `GROUP_ID`.
 4. Per non perdere la lista ai riavvii, aggiungi un **Volume** (es. montato su
    `/data`) e imposta `DATA_FILE=/data/verificati.json`.
 5. Il `Procfile` avvia `python bot.py` come worker.
@@ -45,5 +49,4 @@ python bot.py
 
 ## Note
 - Il bot cancella solo i messaggi arrivati **dopo** il suo avvio.
-- Se `THREAD_ID` è 0 il bot non cancella nulla (modalità sicura per la configurazione).
-- Per proteggere più topic basta trasformare `THREAD_ID` in un elenco; chiedimelo se serve.
+- Senza topic configurati il bot non cancella nulla (modalità sicura per la configurazione).
